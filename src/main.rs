@@ -1,6 +1,9 @@
 use std::fs::File;
-use std::io::{stdout, Write};
+use std::io::{stdin, stdout, Read, Write};
 use std::path::PathBuf;
+use std::process::exit;
+use std::thread::sleep;
+use std::time::Duration;
 
 pub const PROJECT_ROOT_DIR: &str = env!("CARGO_MANIFEST_DIR");
 pub const IMAGES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/images");
@@ -58,8 +61,16 @@ fn generate_ppm_file(){
 
 fn draw_2_point_in_terminal(){
 
-    let width = 10;
-    let height = 10;
+    let width = 25;
+    let height = 25;
+    let mut in_alt_screen_mode = false;
+
+    ctrlc::set_handler(move || {
+        if in_alt_screen_mode{
+            exit_alt_screen_buff();
+        }
+        exit(1);
+    }).expect("Error setting Ctrl-C handler");
 
     // let mut draw_matrix:Vec<PixelWithColor> = vec![PixelWithColor { brightness: 0, color: Color{ r: 0, g: 0, b: 0 } }; width * height];
     // let middle = (width * height) / 2;
@@ -70,9 +81,11 @@ fn draw_2_point_in_terminal(){
     let mut draw_matrix = Vec::<PixelWithColor>::with_capacity(width * height);
     for y in 0..height {
         for x in 0..width {
-            let r = x as f32 / width as f32;
-            let g = y as f32 / height as f32;
-            let b = 0.50;
+            // let r = x as f32 / width as f32;
+            // let g = y as f32 / height as f32;
+            let r = y as f32 / height as f32;
+            let g = x as f32 / height as f32;
+            let b = 0.99;
 
             let r = (r * 256f32) as u8;
             let g = (g * 256f32) as u8;
@@ -83,7 +96,8 @@ fn draw_2_point_in_terminal(){
             )
         }
     }
-
+    enter_alt_screen_buff();
+    in_alt_screen_mode = true;
     for line in 0..height{
         for col in 0..width{
             let pixel_pos = col + line * width;
@@ -98,6 +112,36 @@ fn draw_2_point_in_terminal(){
         }
         stdout().write(b"\n").unwrap();
     }
+    let mut buffer = [0u8; 4];
+    loop {
+        stdin().read(&mut buffer).unwrap();
+        if !buffer.is_empty() {
+            match &buffer {
+                b"^[[A" => stdout().write_all("\x1B1A".as_bytes()).unwrap(),
+                b"^[[B" => stdout().write_all("\x1B1B".as_bytes()).unwrap(),
+                b"^[[C" => stdout().write_all("\x1B1C".as_bytes()).unwrap(),
+                b"^[[D" => stdout().write_all("\x1B1D".as_bytes()).unwrap(),
+                _ => stdout().write_all(&buffer).unwrap()
+            }
+            stdout().flush().unwrap();
+        }
+
+    }
+    // sleep(Duration::from_secs(10));
+    // exit_alt_screen_buff();
+    // in_alt_screen_mode = false;
+}
+
+fn enter_alt_screen_buff(){
+    let command_as_bytes = "\x1B[?1049h".as_bytes();
+    stdout().write_all(command_as_bytes).unwrap();
+    stdout().flush().unwrap();
+}
+
+fn exit_alt_screen_buff(){
+    let command_as_bytes = "\x1B[?1049l".as_bytes();
+    stdout().write_all(command_as_bytes).unwrap();
+    stdout().flush().unwrap();
 }
 
 fn draw_braille(){
@@ -166,10 +210,14 @@ macro_rules! time_if {
         result
     };
 }
+fn terminal_size(){
+}
 
 fn main() {
-
+    //Nix za terminal size
+    //termion za stavljanje terminala u raw mode
     // generate_ppm_file();
     draw_2_point_in_terminal();
     // time_if!(draw_braille());
+    // terminal_size();
 }
